@@ -1,9 +1,16 @@
 import { MODULE_BY_KEY } from '@/data/modules'
 import { allRows, listRows, resetRows, saveRows } from '@/data/local-store'
+import { recordDispatchedGap } from '@/data/resplan-ledger'
 import type { ActionResult, EntryRow, ModuleMeta, OverviewResult, PageResult } from '@/data/types'
 
 // 会写进数据的「往回走」动作：命中就把这条记录标成异常态，看板上能一眼看出来。
 const NEGATIVE_ACTIONS = ['撤销', '作废', '拒绝', '驳回', '停用', '忽略', '下线', '回滚']
+
+// 动作成功后的记账钩子：资源计划下发成功就把缺口结论记进台账，
+// 台账按计划编号 upsert，重复下发也只算一次缺口。
+const AFTER_ACTION_HOOKS: Record<string, (row: EntryRow) => void> = {
+  'resplan:下发计划': (row) => recordDispatchedGap(row),
+}
 
 export function moduleMeta(key: string): ModuleMeta {
   const meta = MODULE_BY_KEY.get(key)
@@ -43,6 +50,14 @@ export function runAction(key: string, id: number, action: string): ActionResult
   if (current === target) {
     return { ok: false, message: `${meta.entity}已经是「${target}」，不用重复操作` }
   }
+  // 顺序不许跨越：登记了发起来源的动作，当前状态不在来源里就是越级，拒绝受理。
+  const sources = meta.actionSources?.[action]
+  if (sources && !sources.includes(current)) {
+    return {
+      ok: false,
+      message: `${meta.entity}当前状态为「${current}」，「${action}」需从「${sources.join('」「')}」发起，越级申请不予受理`,
+    }
+  }
   const lastStatus = meta.statuses[meta.statuses.length - 1]
   const updated: EntryRow = {
     ...rows[index],
@@ -53,6 +68,7 @@ export function runAction(key: string, id: number, action: string): ActionResult
   const next = [...rows]
   next[index] = updated
   saveRows(key, next)
+  AFTER_ACTION_HOOKS[`${key}:${action}`]?.(updated)
   return { ok: true, message: `${meta.entity}已${action}，当前状态「${target}」` }
 }
 

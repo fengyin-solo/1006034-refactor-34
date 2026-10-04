@@ -17,6 +17,8 @@ export type ModuleMeta = {
   statuses: string[]
   actions: string[]
   actionTargets: Record<string, string>
+  // 动作允许的发起状态：登记了的动作必须从这里列的状态发起，否则视为越级，拒绝受理。
+  actionSources?: Record<string, string[]>
   metrics: string[]
 }
 

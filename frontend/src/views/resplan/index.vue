@@ -43,7 +43,9 @@
       </thead>
       <tbody>
         <tr v-for="row in rows" :key="String(row.id)">
-          <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
+          <td v-for="column in columns" :key="column">
+            {{ column === '资源缺口' ? gapOf(row) : (row[column] ?? '—') }}
+          </td>
           <td>{{ row.status }}</td>
           <td class="row-actions">
             <button
@@ -79,13 +81,13 @@ import {
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
+import { measureResourceGap } from '@/data/resplan-gap'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('resplan')
 const columns = ["计划编号", "保障时段", "机位需求", "车辆需求", "人员需求", "资源缺口", "调度人员", "计划状态"]
 const actions = ["提交审核", "下发计划", "作废计划"]
 const statuses = ["待编制", "待审核", "已下发", "已作废"]
-const stats = [{"label": "待编制计划", "value": 0}, {"label": "已下发计划", "value": 0}, {"label": "存在缺口的计划", "value": 0}]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
@@ -98,6 +100,17 @@ const statusSummary = computed(() =>
     count: rows.value.filter((row) => String(row.status) === status).length,
   })),
 )
+
+// 缺口列与「存在缺口的计划」都走统一测算，和下发记账、班组待办是同一口径。
+const stats = computed(() => [
+  { label: '待编制计划', value: rows.value.filter((row) => String(row.status) === '待编制').length },
+  { label: '已下发计划', value: rows.value.filter((row) => String(row.status) === '已下发').length },
+  { label: '存在缺口的计划', value: rows.value.filter((row) => measureResourceGap(row).合计缺口 > 0).length },
+])
+
+function gapOf(row: EntryRow): number {
+  return measureResourceGap(row).合计缺口
+}
 
 function resetFilters() {
   filters.value = {}
