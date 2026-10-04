@@ -16,9 +16,7 @@
         <span class="stat-label">{{ item.label }}</span>
         <strong class="stat-value">{{ item.value }}</strong>
       </article>
-    </div>
-
-    <p class="status-legend">
+    </div>    <p class="status-legend">
       <span v-for="item in statusSummary" :key="item.status" class="legend-item">
         {{ item.status }}：{{ item.count }}
       </span>
@@ -43,7 +41,7 @@
       </thead>
       <tbody>
         <tr v-for="row in rows" :key="String(row.id)">
-          <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
+          <td v-for="column in columns" :key="column">{{ cellText(row, column) }}</td>
           <td>{{ row.status }}</td>
           <td class="row-actions">
             <button
@@ -79,19 +77,34 @@ import {
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
+import { GAP_TOTAL_FIELD, presentResourceGap } from '@/domain/resource-gap'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('resplan')
 const columns = ["计划编号", "保障时段", "机位需求", "车辆需求", "人员需求", "资源缺口", "调度人员", "计划状态"]
 const actions = ["提交审核", "下发计划", "作废计划"]
 const statuses = ["待编制", "待审核", "已下发", "已作废"]
-const stats = [{"label": "待编制计划", "value": 0}, {"label": "已下发计划", "value": 0}, {"label": "存在缺口的计划", "value": 0}]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+
+// 缺口列只展示收口口径的值：已下发读下发时冻结的结论，未下发为实时测算预览。
+function cellText(row: EntryRow, column: string): string | number | boolean {
+  if (column === GAP_TOTAL_FIELD) {
+    return presentResourceGap(row)
+  }
+  const value = row[column]
+  return value === undefined || value === '' ? '—' : value
+}
+
+const stats = computed(() => [
+  { label: "待编制计划", value: rows.value.filter((row) => String(row.status) === "待编制").length },
+  { label: "已下发计划", value: rows.value.filter((row) => String(row.status) === "已下发").length },
+  { label: "存在缺口的计划", value: rows.value.filter((row) => Number(presentResourceGap(row)) > 0).length },
+])
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,

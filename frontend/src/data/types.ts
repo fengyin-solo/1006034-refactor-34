@@ -17,6 +17,8 @@ export type ModuleMeta = {
   statuses: string[]
   actions: string[]
   actionTargets: Record<string, string>
+  // 动作的允许来源状态：登记后状态只能逐级流转，来源不在名单里的请求一律拒绝（越级受理）。
+  actionSources?: Record<string, string[]>
   metrics: string[]
 }
 

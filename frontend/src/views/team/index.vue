@@ -24,6 +24,37 @@
       </span>
     </p>
 
+    <section class="todo-panel">
+      <h3 class="todo-title">缺口待办（按保障时段承接，与已下发资源计划同一份缺口）</h3>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>计划编号</th>
+            <th>保障时段</th>
+            <th>承接班组</th>
+            <th>机位缺口</th>
+            <th>车辆缺口</th>
+            <th>人员缺口</th>
+            <th>缺口合计</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in todos" :key="item.planId">
+            <td>{{ item.planId }}</td>
+            <td>{{ item.period }}</td>
+            <td>{{ item.teamName }}</td>
+            <td>{{ item.gaps.机位 }}</td>
+            <td>{{ item.gaps.车辆 }}</td>
+            <td>{{ item.gaps.人员 }}</td>
+            <td>{{ item.total }}</td>
+          </tr>
+          <tr v-if="!todos.length">
+            <td colspan="7" class="empty-state">当前没有需要承接的缺口待办</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
     <form class="filter-bar" @submit.prevent="reload">
       <label v-for="field in filterFields" :key="field" class="filter-item">
         <span>{{ field }}</span>
@@ -75,10 +106,12 @@ import { computed, onMounted, ref } from 'vue'
 
 import {
   downloadEntries,
+  gapTodos,
   listEntries,
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
+import type { GapTodoItem } from '@/domain/resource-gap'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('team')
@@ -88,6 +121,7 @@ const statuses = ["在岗", "轮休", "培训中", "已解散"]
 const stats = [{"label": "在册班组", "value": 0}, {"label": "在岗班组", "value": 0}, {"label": "轮休班组", "value": 0}]
 
 const rows = ref<EntryRow[]>([])
+const todos = ref<GapTodoItem[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
@@ -128,6 +162,7 @@ function reload() {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
+    todos.value = gapTodos()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '保障班组列表读取失败'
   }
